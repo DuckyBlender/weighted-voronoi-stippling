@@ -1,0 +1,11 @@
+[package]
+name = "weighted-voronoi-stippling"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+delaunator = "1.0.2"
+macroquad = "0.4.5"
+rand = "0.8.5"
