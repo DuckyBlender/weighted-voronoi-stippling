@@ -9,13 +9,18 @@ fn window_conf() -> Conf {
         window_title: "Weighted Voronoi Stippling".to_owned(),
         fullscreen: false,
         window_width: 800,
-        window_height: 800,
+        window_height: 600,
         ..Default::default()
     }
 }
 
 struct Canvas {
-    points: Vec<Point>,
+    points: Vec<Dot>,
+}
+
+struct Dot {
+    pos: Vec2,
+    velocity: Vec2,
 }
 
 impl Canvas {
@@ -23,27 +28,33 @@ impl Canvas {
         // Generate random points
         let mut points = Vec::new();
         for _ in 0..AMOUNT {
-            points.push(Point {
-                x: rand::gen_range(0.0, screen_width().into()),
-                y: rand::gen_range(0.0, screen_height().into()),
+            let x = rand::gen_range(0.0, screen_width());
+            let y = rand::gen_range(0.0, screen_height());
+            let velocity = vec2(rand::gen_range(-1.0, 1.0), rand::gen_range(-1.0, 1.0));
+
+            points.push(Dot {
+                pos: vec2(x, y),
+                velocity,
             });
         }
-        Self { points }
+        Canvas { points }
     }
 
     fn randomize_points(&mut self) {
         self.clear_points();
         for _ in 0..AMOUNT {
-            self.points.push(Point {
-                x: rand::gen_range(0.0, screen_width().into()),
-                y: rand::gen_range(0.0, screen_height().into()),
+            let x = rand::gen_range(0.0, screen_width());
+            let y = rand::gen_range(0.0, screen_height());
+            self.points.push(Dot {
+                pos: vec2(x, y),
+                velocity: vec2(rand::gen_range(-1.0, 1.0), rand::gen_range(-1.0, 1.0)),
             });
         }
     }
 
     fn draw_points(&self) {
         for point in &self.points {
-            draw_circle(point.x as f32, point.y as f32, RADIUS, BLUE);
+            draw_circle(point.pos.x as f32, point.pos.y as f32, RADIUS, BLUE);
         }
     }
 
@@ -51,8 +62,27 @@ impl Canvas {
         self.points.clear();
     }
 
-    fn get_points(&self) -> &Vec<Point> {
-        &self.points
+    fn move_points(&mut self) {
+        // Move the points looking at the velocity
+        for point in &mut self.points {
+            point.pos += point.velocity;
+            if point.pos.x < 0.0 || point.pos.x > screen_width() {
+                point.velocity.x *= -1.0;
+            }
+            if point.pos.y < 0.0 || point.pos.y > screen_height() {
+                point.velocity.y *= -1.0;
+            }
+        }
+    }
+
+    fn as_points(&self) -> Vec<Point> {
+        self.points
+            .iter()
+            .map(|point| Point {
+                x: point.pos.x as f64,
+                y: point.pos.y as f64,
+            })
+            .collect()
     }
 }
 
@@ -81,19 +111,18 @@ fn calculate_estimated_centroids(triangles: &Vec<usize>, points: &Vec<Point>) ->
 async fn main() {
     let mut canvas = Canvas::new();
 
-    // Triangulate the points
-    let mut triangles = triangulate(&canvas.points); // This returns the indices of the points that make up the triangles
-
-    // Approximate the centroid by getting the average of the x and y coordinates
-    let mut centroids = calculate_estimated_centroids(&triangles.triangles, &canvas.points);
-
     loop {
         // If space is pressed, randomize the points
         if is_key_pressed(KeyCode::Space) {
             canvas.randomize_points();
-            triangles = triangulate(&canvas.points);
-            centroids = calculate_estimated_centroids(&triangles.triangles, &canvas.points);
+            
+        } else {
+            canvas.move_points();
+
         }
+
+        let triangles = triangulate(&canvas.as_points());
+        let centroids = calculate_estimated_centroids(&triangles.triangles, &canvas.as_points());
 
         let points = &triangles.hull;
         let triangles = &triangles.triangles;
@@ -106,9 +135,9 @@ async fn main() {
             let y = &canvas.points[triangles[i + 1]];
             let z = &canvas.points[triangles[i + 2]];
             hollow_triangle(
-                vec2(x.x as f32, x.y as f32),
-                vec2(y.x as f32, y.y as f32),
-                vec2(z.x as f32, z.y as f32),
+                vec2(x.pos.x as f32, x.pos.y as f32),
+                vec2(y.pos.x as f32, y.pos.y as f32),
+                vec2(z.pos.x as f32, z.pos.y as f32),
                 WHITE,
             );
         }
