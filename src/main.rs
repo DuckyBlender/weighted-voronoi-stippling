@@ -58,21 +58,29 @@ impl Canvas {
         }
     }
 
+    fn draw_triangles(&self, triangles: &Vec<usize>) {
+        for i in (0..triangles.len()).step_by(3) {
+            let x = &self.points[triangles[i]];
+            let y = &self.points[triangles[i + 1]];
+            let z = &self.points[triangles[i + 2]];
+            hollow_triangle(
+                vec2(x.pos.x as f32, x.pos.y as f32),
+                vec2(y.pos.x as f32, y.pos.y as f32),
+                vec2(z.pos.x as f32, z.pos.y as f32),
+                WHITE,
+            );
+        }
+    }
+
     fn clear_points(&mut self) {
         self.points.clear();
     }
 
+
+
     fn move_points(&mut self) {
-        // Move the points looking at the velocity
-        for point in &mut self.points {
-            point.pos += point.velocity;
-            if point.pos.x < 0.0 || point.pos.x > screen_width() {
-                point.velocity.x *= -1.0;
-            }
-            if point.pos.y < 0.0 || point.pos.y > screen_height() {
-                point.velocity.y *= -1.0;
-            }
-        }
+        // Move to the points to the centroid by 10%
+        // TODO
     }
 
     fn as_points(&self) -> Vec<Point> {
@@ -107,6 +115,35 @@ fn calculate_estimated_centroids(triangles: &Vec<usize>, points: &Vec<Point>) ->
     centroids
 }
 
+fn area(vertices: &[Vec2]) -> f32 {
+    let n = vertices.len();
+    let mut area = 0.0;
+    for i in 0..n {
+        let j = (i + 1) % n;
+        area += vertices[i].x * vertices[j].y;
+        area -= vertices[i].y * vertices[j].x;
+    }
+    area.abs() / 2.0
+}
+
+fn centroid(vertices: &[Vec2]) -> Vec2 {
+    let n = vertices.len();
+    let area = 0.5 * vertices.iter().zip(vertices.iter().cycle().skip(1)).fold(0.0, |a, (&v0, &v1)| {
+        a + (v0.x * v1.y - v1.x * v0.y)
+    });
+    let mut cx = 0.0;
+    let mut cy = 0.0;
+    for i in 0..n {
+        let v0 = vertices[i];
+        let v1 = vertices[(i + 1) % n];
+        cx += (v0.x + v1.x) * (v0.x * v1.y - v1.x * v0.y);
+        cy += (v0.y + v1.y) * (v0.x * v1.y - v1.x * v0.y);
+    }
+    Vec2::new(cx / (6.0 * area), cy / (6.0 * area))
+}
+
+
+
 #[macroquad::main(window_conf)]
 async fn main() {
     let mut canvas = Canvas::new();
@@ -122,37 +159,44 @@ async fn main() {
         }
 
         let triangles = triangulate(&canvas.as_points());
-        let centroids = calculate_estimated_centroids(&triangles.triangles, &canvas.as_points());
-
-        let points = &triangles.hull;
+        let estimated_centroid = calculate_estimated_centroids(&triangles.triangles, &canvas.as_points());
         let triangles = &triangles.triangles;
 
-
-
-        // Draw the triangles
+        // Calculate the area of each triangle
+        let mut areas = Vec::new();
         for i in (0..triangles.len()).step_by(3) {
             let x = &canvas.points[triangles[i]];
             let y = &canvas.points[triangles[i + 1]];
             let z = &canvas.points[triangles[i + 2]];
-            hollow_triangle(
-                vec2(x.pos.x as f32, x.pos.y as f32),
-                vec2(y.pos.x as f32, y.pos.y as f32),
-                vec2(z.pos.x as f32, z.pos.y as f32),
-                WHITE,
-            );
+            let vertices = vec![x.pos, y.pos, z.pos];
+            areas.push(area(&vertices));
         }
 
-        // Draw the estimated centroids
+        // We have the area, now we can calculate the centroid
+        let mut centroids = Vec::new();
+        for i in (0..triangles.len()).step_by(3) {
+            let x = &canvas.points[triangles[i]];
+            let y = &canvas.points[triangles[i + 1]];
+            let z = &canvas.points[triangles[i + 2]];
+            let vertices = vec![x.pos, y.pos, z.pos];
+            centroids.push(centroid(&vertices));
+        }
+
+        // Draw the triangles
+        canvas.draw_triangles(triangles);
+
+        // Draw the centroids
         for centroid in &centroids {
-            draw_circle(centroid.x as f32, centroid.y as f32, 2.0, RED);
+            draw_circle(centroid.x as f32, centroid.y as f32, 2.0, GREEN);
         }
 
         // Draw the points
         canvas.draw_points();
 
         // Draw the text
-        draw_text("RED - Estimated Centroid", 10.0, 10.0, 20.0, WHITE);
-        draw_text("BLUE - Random Points", 10.0, 30.0, 20.0, WHITE);
+        draw_text("GRAY - Estimated Centroid", 10.0, 10.0, 20.0, WHITE);
+        draw_text("GREEN - Centroid", 10.0, 30.0, 20.0, WHITE);
+        draw_text("BLUE - Random Points", 10.0, 50.0, 20.0, WHITE);
 
         next_frame().await
     }
