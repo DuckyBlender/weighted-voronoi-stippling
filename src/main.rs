@@ -20,7 +20,6 @@ struct Canvas {
 
 struct Dot {
     pos: Vec2,
-    velocity: Vec2,
 }
 
 impl Canvas {
@@ -30,11 +29,9 @@ impl Canvas {
         for _ in 0..AMOUNT {
             let x = rand::gen_range(0.0, screen_width());
             let y = rand::gen_range(0.0, screen_height());
-            let velocity = vec2(rand::gen_range(-1.0, 1.0), rand::gen_range(-1.0, 1.0));
 
             points.push(Dot {
                 pos: vec2(x, y),
-                velocity,
             });
         }
         Canvas { points }
@@ -47,7 +44,6 @@ impl Canvas {
             let y = rand::gen_range(0.0, screen_height());
             self.points.push(Dot {
                 pos: vec2(x, y),
-                velocity: vec2(rand::gen_range(-1.0, 1.0), rand::gen_range(-1.0, 1.0)),
             });
         }
     }
@@ -100,20 +96,20 @@ fn hollow_triangle(x: Vec2, y: Vec2, z: Vec2, color: Color) {
     draw_line(z.x, z.y, x.x, x.y, 2.0, color);
 }
 
-fn calculate_estimated_centroids(triangles: &Vec<usize>, points: &Vec<Point>) -> Vec<Point> {
-    let mut centroids = Vec::new();
-    for i in (0..triangles.len()).step_by(3) {
-        let x = &points[triangles[i]];
-        let y = &points[triangles[i + 1]];
-        let z = &points[triangles[i + 2]];
-        let centroid = Point {
-            x: (x.x + y.x + z.x) / 3.0,
-            y: (x.y + y.y + z.y) / 3.0,
-        };
-        centroids.push(centroid);
-    }
-    centroids
-}
+// fn calculate_estimated_centroids(triangles: &Vec<usize>, points: &Vec<Point>) -> Vec<Point> {
+//     let mut centroids = Vec::new();
+//     for i in (0..triangles.len()).step_by(3) {
+//         let x = &points[triangles[i]];
+//         let y = &points[triangles[i + 1]];
+//         let z = &points[triangles[i + 2]];
+//         let centroid = Point {
+//             x: (x.x + y.x + z.x) / 3.0,
+//             y: (x.y + y.y + z.y) / 3.0,
+//         };
+//         centroids.push(centroid);
+//     }
+//     centroids
+// }
 
 fn area(vertices: &[Vec2]) -> f32 {
     let n = vertices.len();
@@ -159,7 +155,6 @@ async fn main() {
         }
 
         let triangles = triangulate(&canvas.as_points());
-        let estimated_centroid = calculate_estimated_centroids(&triangles.triangles, &canvas.as_points());
         let triangles = &triangles.triangles;
 
         // Calculate the area of each triangle
