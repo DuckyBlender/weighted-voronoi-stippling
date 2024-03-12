@@ -1,198 +1,86 @@
-use delaunator::{triangulate, Point};
+use delaunator::{triangulate, Point as DPoint};
 use macroquad::prelude::*;
+use voronoi::{voronoi, make_polygons, Point as VPoint};
 
-const RADIUS: f32 = 3.0;
+const POINT_SIZE: f32 = 1.0;
+const POINT_COLOR: Color = BLUE;
+
+const CENTROID_SIZE: f32 = 3.0;
+const CENTROID_COLOR: Color = GREEN;
+
+const LINE_THICKNESS: f32 = 1.0;
+const LINE_COLOR: Color = WHITE;
+
 const AMOUNT: i32 = 100;
+const WINDOW_SIZE: i32 = 600;
 
 fn window_conf() -> Conf {
     Conf {
         window_title: "Weighted Voronoi Stippling".to_owned(),
         fullscreen: false,
-        window_width: 800,
-        window_height: 600,
+        sample_count: 4,
+        window_width: WINDOW_SIZE,
+        window_height: WINDOW_SIZE,
         ..Default::default()
     }
 }
 
-struct Canvas {
-    points: Vec<Dot>,
-}
-
-struct Dot {
-    pos: Vec2,
-}
-
-impl Canvas {
-    fn new() -> Self {
-        // Generate random points
-        let mut points = Vec::new();
-        for _ in 0..AMOUNT {
-            let x = rand::gen_range(0.0, screen_width());
-            let y = rand::gen_range(0.0, screen_height());
-
-            points.push(Dot {
-                pos: vec2(x, y),
-            });
-        }
-        Canvas { points }
-    }
-
-    fn randomize_points(&mut self) {
-        self.clear_points();
-        for _ in 0..AMOUNT {
-            let x = rand::gen_range(0.0, screen_width());
-            let y = rand::gen_range(0.0, screen_height());
-            self.points.push(Dot {
-                pos: vec2(x, y),
-            });
-        }
-    }
-
-    fn draw_points(&self) {
-        for point in &self.points {
-            draw_circle(point.pos.x as f32, point.pos.y as f32, RADIUS, BLUE);
-        }
-    }
-
-    fn draw_triangles(&self, triangles: &Vec<usize>) {
-        for i in (0..triangles.len()).step_by(3) {
-            let x = &self.points[triangles[i]];
-            let y = &self.points[triangles[i + 1]];
-            let z = &self.points[triangles[i + 2]];
-            hollow_triangle(
-                vec2(x.pos.x as f32, x.pos.y as f32),
-                vec2(y.pos.x as f32, y.pos.y as f32),
-                vec2(z.pos.x as f32, z.pos.y as f32),
-                WHITE,
-            );
-        }
-    }
-
-    fn clear_points(&mut self) {
-        self.points.clear();
-    }
-
-
-
-    fn move_points(&mut self) {
-        // Move to the points to the centroid by 10%
-        // TODO
-    }
-
-    fn as_points(&self) -> Vec<Point> {
-        self.points
-            .iter()
-            .map(|point| Point {
-                x: point.pos.x as f64,
-                y: point.pos.y as f64,
-            })
-            .collect()
-    }
-}
-
-fn hollow_triangle(x: Vec2, y: Vec2, z: Vec2, color: Color) {
-    draw_line(x.x, x.y, y.x, y.y, 2.0, color);
-    draw_line(y.x, y.y, z.x, z.y, 2.0, color);
-    draw_line(z.x, z.y, x.x, x.y, 2.0, color);
-}
-
-// fn calculate_estimated_centroids(triangles: &Vec<usize>, points: &Vec<Point>) -> Vec<Point> {
-//     let mut centroids = Vec::new();
-//     for i in (0..triangles.len()).step_by(3) {
-//         let x = &points[triangles[i]];
-//         let y = &points[triangles[i + 1]];
-//         let z = &points[triangles[i + 2]];
-//         let centroid = Point {
-//             x: (x.x + y.x + z.x) / 3.0,
-//             y: (x.y + y.y + z.y) / 3.0,
-//         };
-//         centroids.push(centroid);
-//     }
-//     centroids
-// }
-
-fn area(vertices: &[Vec2]) -> f32 {
-    let n = vertices.len();
-    let mut area = 0.0;
-    for i in 0..n {
-        let j = (i + 1) % n;
-        area += vertices[i].x * vertices[j].y;
-        area -= vertices[i].y * vertices[j].x;
-    }
-    area.abs() / 2.0
-}
-
-fn centroid(vertices: &[Vec2]) -> Vec2 {
-    let n = vertices.len();
-    let area = 0.5 * vertices.iter().zip(vertices.iter().cycle().skip(1)).fold(0.0, |a, (&v0, &v1)| {
-        a + (v0.x * v1.y - v1.x * v0.y)
-    });
-    let mut cx = 0.0;
-    let mut cy = 0.0;
-    for i in 0..n {
-        let v0 = vertices[i];
-        let v1 = vertices[(i + 1) % n];
-        cx += (v0.x + v1.x) * (v0.x * v1.y - v1.x * v0.y);
-        cy += (v0.y + v1.y) * (v0.x * v1.y - v1.x * v0.y);
-    }
-    Vec2::new(cx / (6.0 * area), cy / (6.0 * area))
-}
-
-
-
 #[macroquad::main(window_conf)]
 async fn main() {
-    let mut canvas = Canvas::new();
+    // Setup random points
+    let mut dpoints = Vec::new();
+    let mut vpoints = Vec::new();
+    // TODO: Make this more efficient
+    for _ in 0..AMOUNT {
+        let x: f64 = rand::gen_range(0., screen_width() as f64);
+        let y: f64 = rand::gen_range(0., screen_height() as f64);
+        dpoints.push(DPoint {x, y} );
+        vpoints.push(VPoint::new(x, y) );
+    }
+
+    // Calculate delaunay
+    let delaunay = triangulate(dpoints.as_slice());
+    // Calculate voronoi
+    let vor_diagram = voronoi(vpoints, WINDOW_SIZE as f64);
+    let vor_polys = make_polygons(&vor_diagram);
 
     loop {
-        // If space is pressed, randomize the points
-        if is_key_pressed(KeyCode::Space) {
-            canvas.randomize_points();
-            
-        } else {
-            canvas.move_points();
-
-        }
-
-        let triangles = triangulate(&canvas.as_points());
-        let triangles = &triangles.triangles;
-
-        // Calculate the area of each triangle
-        let mut areas = Vec::new();
-        for i in (0..triangles.len()).step_by(3) {
-            let x = &canvas.points[triangles[i]];
-            let y = &canvas.points[triangles[i + 1]];
-            let z = &canvas.points[triangles[i + 2]];
-            let vertices = vec![x.pos, y.pos, z.pos];
-            areas.push(area(&vertices));
-        }
-
-        // We have the area, now we can calculate the centroid
-        let mut centroids = Vec::new();
-        for i in (0..triangles.len()).step_by(3) {
-            let x = &canvas.points[triangles[i]];
-            let y = &canvas.points[triangles[i + 1]];
-            let z = &canvas.points[triangles[i + 2]];
-            let vertices = vec![x.pos, y.pos, z.pos];
-            centroids.push(centroid(&vertices));
-        }
-
-        // Draw the triangles
-        canvas.draw_triangles(triangles);
-
-        // Draw the centroids
-        for centroid in &centroids {
-            draw_circle(centroid.x as f32, centroid.y as f32, 2.0, GREEN);
-        }
+        // Clear screen
+        clear_background(BLACK);
 
         // Draw the points
-        canvas.draw_points();
+        for i in 0..dpoints.len() {
+            draw_circle(dpoints[i].x as f32, dpoints[i].y as f32, POINT_SIZE, POINT_COLOR);
+        }
 
-        // Draw the text
-        draw_text("GRAY - Estimated Centroid", 10.0, 10.0, 20.0, WHITE);
-        draw_text("GREEN - Centroid", 10.0, 30.0, 20.0, WHITE);
-        draw_text("BLUE - Random Points", 10.0, 50.0, 20.0, WHITE);
+        // Draw the voronoi polygons
+        for poly in vor_polys.iter() {
+            // Begin creating a shape
+            let mut shape = Vec::new();
+            for i in 0..poly.len() {
+                shape.push(vec2(poly[i].x.into_inner() as f32, poly[i].y.into_inner() as f32));
+            }
+            // Draw the shape
+            // draw_poly_lines(x, y, sides, radius, rotation, thickness, color)
+            draw_custom_shape(shape, LINE_COLOR, LINE_THICKNESS);
+        }
 
+        // Draw the delaunay triangles
+
+        // Update screen
         next_frame().await
+    }
+}
+
+fn draw_custom_shape(points: Vec<Vec2>, color: Color, thickness: f32) {
+    for i in 0..points.len() {
+        draw_line(
+            points[i].x,
+            points[i].y,
+            points[(i + 1) % points.len()].x, // modulo because we need to connect the last point to the first
+            points[(i + 1) % points.len()].y,
+            thickness,
+            color,
+        );
     }
 }
