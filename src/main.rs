@@ -13,7 +13,6 @@ const LINE_COLOR: Color = WHITE;
 
 const POINT_AMOUNT: i32 = 100;
 const WINDOW_SIZE: i32 = 600;
-const LERP_AMOUNT: f32 = 0.01;
 
 fn window_conf() -> Conf {
     Conf {
@@ -31,6 +30,7 @@ async fn main() {
     // Setup random points
     let mut dpoints = Vec::new();
     let mut vpoints = Vec::new();
+    let mut lerp_amount: f32 = 1.0;
     // TODO: Make this more efficient
     for _ in 0..POINT_AMOUNT {
         let x: f64 = rand::gen_range(0., screen_width() as f64);
@@ -43,8 +43,25 @@ async fn main() {
         // Clear screen
         clear_background(BLACK);
 
+        if is_key_pressed(KeyCode::Space) {
+            dpoints.clear();
+            vpoints.clear();
+            for _ in 0..POINT_AMOUNT {
+                let x: f64 = rand::gen_range(0., screen_width() as f64);
+                let y: f64 = rand::gen_range(0., screen_height() as f64);
+                dpoints.push(DPoint { x, y });
+                vpoints.push(VPoint::new(x, y));
+            }
+        }
+        if is_key_down(KeyCode::Up) {
+            lerp_amount += 0.01;
+        }
+        if is_key_down(KeyCode::Down) {
+            lerp_amount -= 0.01;
+        }
+
         // Calculate delaunay
-        let delaunay = triangulate(dpoints.as_slice());
+        // let delaunay = triangulate(dpoints.as_slice());
         // Calculate voronoi
         let vor_diagram = voronoi(vpoints.clone(), WINDOW_SIZE as f64);
         let vor_polys = make_polygons(&vor_diagram);
@@ -96,6 +113,10 @@ async fn main() {
 
         // Lerp the points to the centroids
         for i in 0..dpoints.len() {
+            // Check if i is out of bounds
+            if i >= centroids.len() {
+                break;
+            }
             dpoints[i].x = lerp(
                 DPoint {
                     x: dpoints[i].x,
@@ -105,7 +126,7 @@ async fn main() {
                     x: centroids[i].x as f64,
                     y: centroids[i].y as f64,
                 },
-                LERP_AMOUNT,
+                lerp_amount,
             )
             .x as f64;
             dpoints[i].y = lerp(
@@ -117,13 +138,32 @@ async fn main() {
                     x: centroids[i].x as f64,
                     y: centroids[i].y as f64,
                 },
-                LERP_AMOUNT,
+                lerp_amount,
             )
             .y as f64;
 
             // Update vpoints as well
             vpoints[i] = VPoint::new(dpoints[i].x, dpoints[i].y);
         }
+
+        // Draw centroids
+        for i in 0..centroids.len() {
+            draw_circle(
+                centroids[i].x,
+                centroids[i].y,
+                CENTROID_SIZE,
+                CENTROID_COLOR,
+            );
+        }
+
+        // Draw the lerp_amount value
+        draw_text(
+            &format!("LERP_AMOUNT: {:.2}", lerp_amount),
+            10.0,
+            20.0,
+            20.0,
+            WHITE,
+        );
 
         // Update screen
         next_frame().await
