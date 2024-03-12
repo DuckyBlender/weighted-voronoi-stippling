@@ -41,7 +41,8 @@ async fn main() {
 
     loop {
         // Clear screen
-        clear_background(BLACK);
+        // This is not needed because it's already done in next_frame()
+        // clear_background(BLACK);
 
         if is_key_pressed(KeyCode::P) {
             pause = !pause;
@@ -107,6 +108,16 @@ async fn main() {
             centroids.push(centroid);
         }
 
+        // Render centroids
+        for centroid in &centroids {
+            draw_circle(centroid.x, centroid.y, CENTROID_SIZE, CENTROID_COLOR);
+        }
+
+        // Render points
+        for point in &points {
+            draw_circle(point.x() as f32, point.y() as f32, POINT_SIZE, POINT_COLOR);
+        }
+
         // Lerp the points to the centroids
         if !pause || step {
             for i in 0..points.len() {
@@ -132,15 +143,7 @@ async fn main() {
             }
         }
 
-        // Render centroids
-        for centroid in &centroids {
-            draw_circle(centroid.x, centroid.y, CENTROID_SIZE, CENTROID_COLOR);
-        }
-
-        // Render points
-        for point in &points {
-            draw_circle(point.x() as f32, point.y() as f32, POINT_SIZE, POINT_COLOR);
-        }
+        
 
         // Draw the lerp_amount value
         draw_text(
