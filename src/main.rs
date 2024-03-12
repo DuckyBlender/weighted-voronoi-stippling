@@ -1,7 +1,7 @@
 use macroquad::prelude::*;
 use voronoi::{make_polygons, voronoi, Point};
 
-const POINT_SIZE: f32 = 1.0;
+const POINT_SIZE: f32 = 2.0;
 const POINT_COLOR: Color = BLUE;
 
 const CENTROID_SIZE: f32 = 3.0;
@@ -29,15 +29,29 @@ async fn main() {
     // Setup random points
     let mut points = Vec::new();
     let mut lerp_amount: f32 = 1.0;
+    let mut pause = false;
+    let mut step = false;
     for _ in 0..POINT_AMOUNT {
         let x: f64 = rand::gen_range(0., screen_width() as f64);
         let y: f64 = rand::gen_range(0., screen_height() as f64);
         points.push(Point::new(x, y));
     }
+    let mut vor_diagram = voronoi(points.clone(), WINDOW_SIZE as f64);
+    let mut vor_polys = make_polygons(&vor_diagram);
 
     loop {
         // Clear screen
         clear_background(BLACK);
+
+        if is_key_pressed(KeyCode::P) {
+            pause = !pause;
+        }
+
+        if is_key_pressed(KeyCode::N) {
+            if pause {
+                step = true;
+            }
+        }
 
         if is_key_pressed(KeyCode::Space) {
             points.clear();
@@ -48,26 +62,18 @@ async fn main() {
             }
         }
         if is_key_down(KeyCode::Up) {
-            lerp_amount += 0.01;
+            lerp_amount = (lerp_amount + 0.01).min(1.0);
         }
         if is_key_down(KeyCode::Down) {
-            lerp_amount -= 0.01;
+            lerp_amount = (lerp_amount - 0.01).max(0.0);
         }
 
         // Calculate delaunay
         // let delaunay = triangulate(dpoints.as_slice());
         // Calculate voronoi
-        let vor_diagram = voronoi(points.clone(), WINDOW_SIZE as f64);
-        let vor_polys = make_polygons(&vor_diagram);
-
-        // Draw the points
-        for i in 0..points.len() {
-            draw_circle(
-                points[i].x() as f32,
-                points[i].y() as f32,
-                POINT_SIZE,
-                POINT_COLOR,
-            );
+        if !pause || step {
+            vor_diagram = voronoi(points.clone(), WINDOW_SIZE as f64);
+            vor_polys = make_polygons(&vor_diagram);
         }
 
         // Draw the voronoi polygons
@@ -75,10 +81,7 @@ async fn main() {
             // Begin creating a shape
             let mut shape = Vec::new();
             for i in 0..poly.len() {
-                shape.push(vec2(
-                    poly[i].x() as f32,
-                    poly[i].y() as f32,
-                ));
+                shape.push(vec2(poly[i].x() as f32, poly[i].y() as f32));
             }
             // Draw the shape
             // draw_poly_lines(x, y, sides, radius, rotation, thickness, color)
@@ -93,8 +96,7 @@ async fn main() {
             for i in 0..poly.len() {
                 let v0 = poly[i];
                 let v1 = poly[(i + 1) % poly.len()];
-                let cross =
-                    v0.x() * v1.y() - v1.x() * v0.y();
+                let cross = v0.x() * v1.y() - v1.x() * v0.y();
                 area += cross;
                 centroid.x += ((v0.x() + v1.x()) * cross) as f32;
                 centroid.y += ((v0.y() + v1.y()) * cross) as f32;
@@ -106,37 +108,38 @@ async fn main() {
         }
 
         // Lerp the points to the centroids
-        for i in 0..points.len() {
-            // Check if i is out of bounds
-            if i >= centroids.len() {
-                break;
+        if !pause || step {
+            for i in 0..points.len() {
+                // Check if i is out of bounds
+                if i >= centroids.len() {
+                    break;
+                }
+
+                let new = lerp(
+                    Point::new(points[i].x(), points[i].y()),
+                    Point::new(centroids[i].x as f64, centroids[i].y as f64),
+                    lerp_amount,
+                );
+
+                let new_x = new.clone().x();
+                let new_y = new.clone().y();
+
+                points[i] = Point::new(new_x, new_y);
+                // Check if points[i] is actually updated
+                if points[i].x() != new_x || points[i].y() != new_y {
+                    println!("Point {} not updated", i);
+                }
             }
-
-            let new_x = lerp(
-                Point::new(points[i].x(), points[i].y()),
-                Point::new(centroids[i].x as f64, centroids[i].y as f64),
-                lerp_amount,
-            )
-            .x();
-
-            let new_y = lerp(
-                Point::new(points[i].x(), points[i].y()),
-                Point::new(centroids[i].x as f64, centroids[i].y as f64),
-                lerp_amount,
-            )
-            .y();
-
-            points[i] = Point::new(new_x, new_y);
         }
 
-        // Draw centroids
-        for i in 0..centroids.len() {
-            draw_circle(
-                centroids[i].x,
-                centroids[i].y,
-                CENTROID_SIZE,
-                CENTROID_COLOR,
-            );
+        // Render centroids
+        for centroid in &centroids {
+            draw_circle(centroid.x, centroid.y, CENTROID_SIZE, CENTROID_COLOR);
+        }
+
+        // Render points
+        for point in &points {
+            draw_circle(point.x() as f32, point.y() as f32, POINT_SIZE, POINT_COLOR);
         }
 
         // Draw the lerp_amount value
@@ -147,6 +150,31 @@ async fn main() {
             20.0,
             WHITE,
         );
+
+        // Draw instructions in the bottom-left
+        draw_text(
+            "P: Pause | N: Step | Up/Down: Lerp Amount | Space: Randomize",
+            10.0,
+            screen_height() - 10.0,
+            20.0,
+            WHITE,
+        );
+
+        if pause {
+            draw_text(
+                "PAUSED",
+                // Top right of the screen
+                screen_width() - 150.0,
+                50.0,
+                50.0,
+                RED,
+            );
+        }
+
+        // If step is true, we just finished a step so toggle it back off
+        if step {
+            step = false;
+        }
 
         // Update screen
         next_frame().await
