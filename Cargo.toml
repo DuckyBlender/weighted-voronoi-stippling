@@ -6,7 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# delaunator = "1.0.2"
-macroquad = "0.4.5"
-rand = "0.8.5"
-voronoi = "0.1.4"
+approx = "0.5.1" # for tests
+# delaunator = "1.0.2" # this is not used because `voronoi` does the delaunay triangulation
+macroquad = "0.4.5" # graphics library
+rand = "0.8.5" # random number generator
+voronoi = "0.1.4" # voronoi library

@@ -172,3 +172,6 @@ fn draw_custom_shape(points: Vec<Vec2>, color: Color, thickness: f32) {
         );
     }
 }
+
+#[cfg(test)]
+mod tests;
