@@ -4,13 +4,13 @@ use voronoi::{make_polygons, voronoi, Point};
 const POINT_SIZE: f32 = 2.0;
 const POINT_COLOR: Color = BLUE;
 
-const CENTROID_SIZE: f32 = 3.0;
+const CENTROID_SIZE: f32 = 1.0;
 const CENTROID_COLOR: Color = GREEN;
 
 const LINE_THICKNESS: f32 = 1.0;
 const LINE_COLOR: Color = WHITE;
 
-const POINT_AMOUNT: i32 = 100;
+const POINT_AMOUNT: i32 = 1000;
 const WINDOW_SIZE: i32 = 600;
 
 fn window_conf() -> Conf {
@@ -69,8 +69,11 @@ async fn main() {
             lerp_amount = (lerp_amount - 0.01).max(0.0);
         }
 
-        // Calculate delaunay
-        // let delaunay = triangulate(dpoints.as_slice());
+        // Render points
+        for point in &points {
+            draw_circle(point.x() as f32, point.y() as f32, POINT_SIZE, POINT_COLOR);
+        }
+
         // Calculate voronoi
         if !pause || step {
             vor_diagram = voronoi(points.clone(), WINDOW_SIZE as f64);
@@ -85,11 +88,12 @@ async fn main() {
                 shape.push(vec2(poly[i].x() as f32, poly[i].y() as f32));
             }
             // Draw the shape
-            // draw_poly_lines(x, y, sides, radius, rotation, thickness, color)
+            // draw_poly_lines(x,       // Calculate delaunay
+            // let delaunay = triangulate(dpoints.as_slice()); y, sides, radius, rotation, thickness, color)
             draw_custom_shape(shape, LINE_COLOR, LINE_THICKNESS);
         }
 
-        // Draw the centroids
+        // Calculate the centroids
         let mut centroids = Vec::new();
         for poly in vor_polys.iter() {
             let mut area = 0.0;
@@ -109,14 +113,9 @@ async fn main() {
         }
 
         // Render centroids
-        for centroid in &centroids {
-            draw_circle(centroid.x, centroid.y, CENTROID_SIZE, CENTROID_COLOR);
-        }
-
-        // Render points
-        for point in &points {
-            draw_circle(point.x() as f32, point.y() as f32, POINT_SIZE, POINT_COLOR);
-        }
+        // for centroid in &centroids {
+        //     draw_circle(centroid.x, centroid.y, CENTROID_SIZE, CENTROID_COLOR);
+        // }
 
         // Lerp the points to the centroids
         if !pause || step {
@@ -126,24 +125,14 @@ async fn main() {
                     break;
                 }
 
-                let new = lerp(
-                    Point::new(points[i].x(), points[i].y()),
+                let lerp_point = lerp(
+                    points[i],
                     Point::new(centroids[i].x as f64, centroids[i].y as f64),
                     lerp_amount,
                 );
-
-                let new_x = new.clone().x();
-                let new_y = new.clone().y();
-
-                points[i] = Point::new(new_x, new_y);
-                // Check if points[i] is actually updated
-                if points[i].x() != new_x || points[i].y() != new_y {
-                    println!("Point {} not updated", i);
-                }
+                points[i] = lerp_point;
             }
         }
-
-        
 
         // Draw the lerp_amount value
         draw_text(
